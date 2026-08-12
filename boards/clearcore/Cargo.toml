@@ -1,18 +1,18 @@
 [package]
-authors = ["Wez Furlong <wez@wezfurlong.org>"]
+authors = [
+  "Paul Fornage <paul@fornage.net>",
+  "Karsten Große <karsten.grosse@sympatron.de>",
+  "John Little <johngigantic@gmail.com>",
+]
 categories = ["embedded", "hardware-support", "no-std"]
-description = "Board Support crate for the Adafruit Metro M0"
+description = "Board Support crate for the ClearCore"
 edition = "2021"
 keywords = ["no-std", "arm", "cortex-m", "embedded-hal"]
 license = "MIT OR Apache-2.0"
-name = "metro_m0"
+name = "clearcore"
 readme = "README.md"
-repository = "https://github.com/atsamd-rs/atsamd"
-version = "0.20.4"
-
-# for cargo flash
-[package.metadata]
-chip = "ATSAMD21G18A"
+repository = "https://github.com/paul-fornage/atsamd"
+version = "0.13.4"
 
 [dependencies.cortex-m-rt]
 optional = true
@@ -27,33 +27,27 @@ default-features = false
 path = "../../hal"
 version = "0.23.4"
 
-[dependencies.rtic]
-features = ["thumbv6-backend"]
-optional = true
-version = "2.1.1"
-
 [dependencies.usb-device]
 optional = true
 version = "0.3.1"
 
 [dev-dependencies]
-cortex-m = "0.7"
-panic-halt = "0.2"
-panic-semihosting = "0.5"
-usbd-serial = "0.2"
+mcan = "0.2"
+panic-rtt-target = {version = "0.1", features = ["cortex-m"]}
+rtic = {version = "2.1.2", features = ["thumbv7-backend"]}
+rtt-target = {version = "0.3", features = ["cortex-m"]}
 
 [features]
-# ask the HAL to enable atsamd21g support
-default = ["rt", "atsamd-hal/samd21g"]
+default = ["rt", "atsamd-hal/same53n"]
 dma = ["atsamd-hal/dma"]
 max-channels = ["dma", "atsamd-hal/max-channels"]
 # Enable async support from atsamd-hal
 async = ["atsamd-hal/async"]
-rt = ["cortex-m-rt", "atsamd-hal/samd21g-rt"]
-rtic = ["dep:rtic", "atsamd-hal/rtic"]
+can = ["atsamd-hal/can"]
+rt = ["cortex-m-rt", "atsamd-hal/same53n-rt"]
 usb = ["atsamd-hal/usb", "usb-device"]
-use_rtt = ["atsamd-hal/use_rtt"]
-use_semihosting = []
+# Enable rtic support from atsamd-hal
+rtic = ["atsamd-hal/rtic"]
 
 [[example]]
 name = "blinky_basic"
@@ -63,13 +57,5 @@ name = "blinky_rtic"
 required-features = ["rtic"]
 
 [[example]]
-name = "i2c"
-required-features = ["dma"]
-
-[[example]]
-name = "spi"
-required-features = ["dma"]
-
-[[example]]
-name = "usb_echo"
-required-features = ["usb"]
+name = "mcan"
+required-features = ["can", "rtic"]

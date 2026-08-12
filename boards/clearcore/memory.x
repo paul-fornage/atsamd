@@ -1,8 +1,8 @@
 MEMORY
 {
   /* NOTE 1 K = 1 KiBi = 1024 bytes */
-  FLASH : ORIGIN = 0x00000000, LENGTH = 1M
-  RAM : ORIGIN = 0x20000000, LENGTH = 256k
+  FLASH (rx) : ORIGIN = 0x00000000 + 16K, LENGTH = 512K - 16K
+  RAM : ORIGIN = 0x20000000, LENGTH = 196k
 }
 
 /* This is where the call stack will be allocated. */
@@ -30,4 +30,5 @@ MEMORY
      } > RAM2
    } INSERT AFTER .bss;
 */
+
 
