@@ -5,7 +5,7 @@ members = [
 	"hal",
 	"atsamd-hal-macros",
 	"pac/*",
-	"boards/*",
+	"boards/clearcore", # Silencing my tardy IDE
 ]
 
 [profile.dev]
