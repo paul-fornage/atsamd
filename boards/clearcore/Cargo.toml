@@ -35,6 +35,8 @@ version = "0.3.1"
 mcan = "0.2"
 rtic = {version = "2.1.2", features = ["thumbv7-backend"]}
 panic-halt = "0.2"
+panic-probe = "0.3"
+rtt-target = {version = "0.3.0", features = ["cortex-m"]}
 
 [features]
 default = ["rt", "atsamd-hal/same53n"]
@@ -50,6 +52,9 @@ rtic = ["atsamd-hal/rtic"]
 
 [[example]]
 name = "blinky_basic"
+
+[[example]]
+name = "hello_world"
 
 [[example]]
 name = "blinky_rtic"
