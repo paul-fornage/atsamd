@@ -16,7 +16,9 @@ fn main() -> ! {
     let mut peripherals = Peripherals::take().unwrap();
     let core = CorePeripherals::take().unwrap();
 
-    let mut clocks = GenericClockController::with_external_32kosc(
+    // This uses the internal clock, not the `SYS_CLK` net on the schem. `SYS_CLK` is shared by the
+    // ethernet PHY so do not even think about using that!
+    let mut clocks = GenericClockController::with_internal_32kosc(
         peripherals.gclk,
         &mut peripherals.mclk,
         &mut peripherals.osc32kctrl,
