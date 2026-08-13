@@ -10,13 +10,12 @@
 //! - Conversion helpers for the various scaled analog signals and the
 //!   4-20mA DAC output.
 //!
-//! ## Notes / assumptions
+//! ## Pin-mux notes
 //!
-//! - The `IoSet` type parameters below are best guesses. They are checked at
-//!   compile time by `atsamd-hal`, so if one is wrong the pads will fail to
-//!   type-check; consult the `hal::sercom::pad` module docs (or the SAME53
-//!   datasheet I/O multiplexing table) and adjust the single offending
-//!   parameter.
+//! - The SERCOM pad assignments below follow the supplied SAME53N19A
+//!   multiplexing table: COM1 is SERCOM0 on mux C, COM0 is SERCOM7 on mux D,
+//!   XBEE is SERCOM2 on mux D, the SD signals are SERCOM4 on mux D, and the
+//!   shift-register signals are SERCOM6 on mux C.
 //! - The shift registers are assumed to be 74HC595-style (`SRCLK`/`RCLK`/
 //!   `Q7'`/`OEn` match the note names `SR_CLK`/`SR_LOAD`/`SR_DATA_RET`/
 //!   `SR_ENn`). With SR_DATA feeding SR0 and `Q7'` of SR3 returning as
@@ -43,7 +42,7 @@ use hal::time::Hertz;
 ///
 /// RTS (PA10/PAD2) and CTS (PA11/PAD3) are available; add them to the pads if
 /// you want hardware flow control.
-pub type Com1UartPads = uart::PadsFromIds<Sercom0, IoSet1, Com1Rx, Com1Tx>;
+pub type Com1UartPads = uart::Pads<Sercom0, Com1Rx, Com1Tx>;
 /// UART for the `COM1` connector.
 ///
 /// Remember to set `CfgCom1_UART_SPIn` **high** on the shift register chain
@@ -55,7 +54,7 @@ pub type Com1Uart = uart::Uart<uart::Config<Com1UartPads>, uart::Duplex>;
 ///
 /// SS (PA10) is left out; drive it as a software-controlled [`Com1Ss`]
 /// reconfigured as a push-pull output if needed.
-pub type Com1SpiPads = spi::PadsFromIds<Sercom0, IoSet1, Com1Miso, Com1Mosi, Com1Sck>;
+pub type Com1SpiPads = spi::Pads<Sercom0, Com1Miso, Com1Mosi, Com1Sck>;
 /// SPI master for the `COM1` connector (`CfgCom1_UART_SPIn` low).
 pub type Com1Spi = spi::Spi<spi::Config<Com1SpiPads>, spi::Duplex>;
 
@@ -104,12 +103,12 @@ pub fn com1_spi(
 
 /// UART pads for `COM0` (RX = PB20/PAD1, TX = PB21/PAD0). RTS/CTS on
 /// PB18/PB19 are available for hardware flow control.
-pub type Com0UartPads = uart::PadsFromIds<Sercom7, IoSet1, Com0Rx, Com0Tx>;
+pub type Com0UartPads = uart::Pads<Sercom7, Com0Rx, Com0Tx>;
 /// UART for the `COM0` connector. See [`Com1Uart`] for the `Cfg*` caveats.
 pub type Com0Uart = uart::Uart<uart::Config<Com0UartPads>, uart::Duplex>;
 
 /// SPI pads for `COM0` (DI = PB19/PAD3, DO = PB21/PAD0, SCK = PB20/PAD1).
-pub type Com0SpiPads = spi::PadsFromIds<Sercom7, IoSet1, Com0Miso, Com0Mosi, Com0Sck>;
+pub type Com0SpiPads = spi::Pads<Sercom7, Com0Miso, Com0Mosi, Com0Sck>;
 /// SPI master for the `COM0` connector (`CfgCom0_UART_SPIn` low).
 pub type Com0Spi = spi::Spi<spi::Config<Com0SpiPads>, spi::Duplex>;
 
@@ -159,7 +158,7 @@ pub fn com0_spi(
 /// UART pads for the XBEE socket (RX = PB24/PAD1, TX = PB25/PAD0).
 /// RTS (PC24/PAD2) and CTS (PC25/PAD3) are available for flow control,
 /// which XBee modules generally want at higher baud rates.
-pub type XbeeUartPads = uart::PadsFromIds<Sercom2, IoSet3, XbeeRx, XbeeTx>;
+pub type XbeeUartPads = uart::Pads<Sercom2, XbeeRx, XbeeTx>;
 /// UART for the XBEE socket. All lines are 3.3v and buffered on-board.
 pub type XbeeUart = uart::Uart<uart::Config<XbeeUartPads>, uart::Duplex>;
 
@@ -181,12 +180,12 @@ pub fn xbee_uart(
 }
 
 // ----------------------------------------------------------------------------
-// SD card (SERCOM4, PB08-PB10; CS on PA04 is software controlled)
+// SD card (SERCOM4 mux D, PB08-PB10; CS on PA04 is software controlled)
 // ----------------------------------------------------------------------------
 
 /// SPI pads for the micro SD slot
 /// (DI = PB10/PAD2, DO = PB08/PAD0, SCK = PB09/PAD1).
-pub type SdSpiPads = spi::PadsFromIds<Sercom4, IoSet2, MicroSdMiso, MicroSdMosi, MicroSdSck>;
+pub type SdSpiPads = spi::Pads<Sercom4, MicroSdMiso, MicroSdMosi, MicroSdSck>;
 /// SPI master for the micro SD slot.
 ///
 /// PA04 (`MicroSD_SS`) is not a SERCOM4 pad, so chip select must be handled

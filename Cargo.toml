@@ -6,8 +6,8 @@ members = [
 	"atsamd-hal-macros",
 	"pac/*",
 	"boards/clearcore", # Silencing my tardy IDE
-#	"boards/feather_m4",
-#	"boards/atsame54_xpro",
+	"boards/feather_m4",
+	"boards/atsame54_xpro",
 ]
 
 [profile.dev]

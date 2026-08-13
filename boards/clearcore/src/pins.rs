@@ -108,7 +108,7 @@ hal::bsp_pins!(
         /// PA08: `Com1_TX_{MOSI}`, SERCOM0 PAD\[0\]. TX/MOSI on the `COM1`
         /// connector. Output is inverted when `CfgCom1_Polarity` is high.
         /// Always pulled low before the gate.
-        name: com1_tx,
+        name: com1_tx_mosi,
         aliases: {
             AlternateC: Com1Tx
             AlternateC: Com1Mosi
@@ -119,7 +119,7 @@ hal::bsp_pins!(
         /// `CfgCom1_UART_SPIn`: in 'RX mode', RX/SCK on `COM1` reaches this
         /// pin through an XOR that can invert it (`CfgCom1_Polarity`); in
         /// 'SCK mode', this pin drives RX/SCK on `COM1` through a buffer.
-        name: com1_rx,
+        name: com1_rx_sck,
         aliases: {
             AlternateC: Com1Rx
             AlternateC: Com1Sck
@@ -129,7 +129,7 @@ hal::bsp_pins!(
         /// PA10: `Com1_RTS_{SS}`, SERCOM0 PAD\[2\]. Drives the RTS/SS pin on
         /// the `COM1` connector, inverted by `CfgCom1_Polarity` before
         /// reaching the connector. Pulled low before the gate.
-        name: com1_rts,
+        name: com1_rts_ss,
         aliases: {
             AlternateC: Com1Rts
             AlternateC: Com1Ss
@@ -139,7 +139,7 @@ hal::bsp_pins!(
         /// PA11: `Com1_CTS_{MISO}`, SERCOM0 PAD\[3\]. Output of the XOR on
         /// CTS/MISO of the `COM1` connector, so it can be inverted by
         /// `CfgCom1_Polarity`.
-        name: com1_cts,
+        name: com1_cts_miso,
         aliases: {
             AlternateC: Com1Cts
             AlternateC: Com1Miso
@@ -343,7 +343,7 @@ hal::bsp_pins!(
         /// to the `CMD/SPI_DI` pin of the SD card slot.
         name: micro_sd_mosi,
         aliases: {
-            AlternateC: MicroSdMosi
+            AlternateD: MicroSdMosi
         }
     }
     PB09 {
@@ -351,7 +351,7 @@ hal::bsp_pins!(
         /// the `CLK/SPI_SCLK` pin of the SD card slot.
         name: micro_sd_sck,
         aliases: {
-            AlternateC: MicroSdSck
+            AlternateD: MicroSdSck
         }
     }
     PB10 {
