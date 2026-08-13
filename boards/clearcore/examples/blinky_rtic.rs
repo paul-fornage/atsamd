@@ -1,14 +1,14 @@
 #![no_std]
 #![no_main]
 
-use atsame54_xpro as bsp;
 use bsp::hal;
+use clearcore as bsp;
+
+use panic_probe as _;
+use rtt_target::{rprintln, rtt_init_print};
 use hal::clock::v2::{clock_system_at_reset, osculp32k::OscUlp1k, rtcosc::RtcOsc};
 use hal::prelude::*;
 use hal::rtc::rtic::rtc_clock;
-use panic_rtt_target as _;
-use rtt_target::{rprintln, rtt_init_print};
-// TODO: Any reason this cannot be in a HAL's prelude?
 use hal::ehal::digital::StatefulOutputPin;
 
 hal::rtc_monotonic!(Mono, rtc_clock::Clock1k);
@@ -22,7 +22,7 @@ mod app {
 
     #[local]
     struct Local {
-        led: bsp::Led,
+        out01: bsp::Out01,
     }
 
     #[init]
@@ -61,23 +61,23 @@ mod app {
         (
             Shared {},
             Local {
-                led: bsp::pin_alias!(pins.led).into(),
+                out01: bsp::pin_alias!(pins.out01).into(),
             },
         )
     }
 
     /// This function is spawned and never returns.
-    #[task(priority = 1, local=[led])]
+    #[task(priority = 1, local=[out01])]
     async fn blink_led(ctx: blink_led::Context) {
-        StatefulOutputPin::toggle(ctx.local.led).unwrap();
+        StatefulOutputPin::toggle(ctx.local.out01).unwrap();
         rprintln!(
             "LED {}!",
-            if ctx.local.led.is_set_high().unwrap() {
+            if ctx.local.out01.is_set_high().unwrap() {
                 "OFF"
             } else {
                 "ON"
             }
         );
-        Mono::delay(200u64.millis()).await;
+        Mono::delay(1000u64.millis()).await;
     }
 }
