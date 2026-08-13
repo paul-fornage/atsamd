@@ -24,6 +24,8 @@
 //!   [SR3, SR2, SR1, SR0], MSB first (SPI MODE_0, MSB-first — the SERCOM
 //!   default).
 
+use core::convert::Infallible;
+use atsamd_hal::ehal::digital::OutputPin;
 use super::hal;
 use super::pins::*;
 
@@ -31,7 +33,7 @@ use hal::clock::GenericClockController;
 use hal::ehal::spi::SpiBus;
 use hal::pac;
 use hal::sercom::uart::{self, BaudMode, Oversampling};
-use hal::sercom::{spi, IoSet1, IoSet2, IoSet3, Sercom0, Sercom2, Sercom4, Sercom6, Sercom7};
+use hal::sercom::{spi, Sercom0, Sercom2, Sercom4, Sercom6, Sercom7};
 use hal::time::Hertz;
 
 // ----------------------------------------------------------------------------
@@ -224,7 +226,7 @@ pub fn sd_spi(
 /// SPI pads for the shift register chain
 /// (DI = `SR_DATA_RET` PC06/PAD2, DO = `SR_DATA` PC07/PAD3,
 /// SCK = `SR_CLK` PC05/PAD1).
-pub type SrSpiPads = spi::PadsFromIds<Sercom6, IoSet1, SrDataRet, SrData, SrClk>;
+pub type SrSpiPads = spi::Pads<Sercom6, SrDataRet, SrData, SrClk>;
 /// SPI master driving the shift register chain.
 pub type SrSpi = spi::Spi<spi::Config<SrSpiPads>, spi::Duplex>;
 
@@ -434,8 +436,8 @@ impl ShiftRegisters {
     /// [`enable_outputs`](Self::enable_outputs) once you are happy with the
     /// state.
     pub fn new(spi: SrSpi, mut load: SrLoad, mut enable: SrEn) -> Result<Self, SrError> {
-        enable.set_high();
-        load.set_low();
+        unwrap_infallible_none(enable.set_high());
+        unwrap_infallible_none(load.set_low());
         let mut sr = Self {
             spi,
             load,
@@ -448,12 +450,12 @@ impl ShiftRegisters {
 
     /// Drives `SR_ENn` low, enabling all shift register outputs.
     pub fn enable_outputs(&mut self) {
-        self.enable.set_low();
+        unwrap_infallible_none(self.enable.set_low());
     }
 
     /// Drives `SR_ENn` high, tri-stating all shift register outputs.
     pub fn disable_outputs(&mut self) {
-        self.enable.set_high();
+        unwrap_infallible_none(self.enable.set_high());
     }
 
     /// The buffered (not necessarily latched) chain state.
@@ -543,10 +545,10 @@ impl ShiftRegisters {
         let mut buf = self.state.to_be_bytes();
         self.spi.transfer_in_place(&mut buf)?;
         self.spi.flush()?;
-        self.load.set_high();
+        unwrap_infallible_none(self.load.set_high());
         // 74HC595 t_w(RCLK) is tens of ns; two GPIO writes at 120MHz are
         // comfortably slower than that.
-        self.load.set_low();
+        unwrap_infallible_none(self.load.set_low());
         Ok(u32::from_be_bytes(buf))
     }
 
@@ -644,3 +646,5 @@ pub fn vsupply_volts(v_pin: f32) -> f32 {
 pub fn v5ob_volts(v_pin: f32) -> f32 {
     v_pin * 2.0
 }
+// Helper to quell warnings about obviously safe ignoring of results.
+fn unwrap_infallible_none(_res: Result<(), Infallible>) {}
