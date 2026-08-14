@@ -29,6 +29,11 @@ use atsamd_hal::ehal::digital::OutputPin;
 use super::hal;
 use super::pins::*;
 
+#[cfg(feature = "usb")]
+use atsamd_hal::usb::UsbBus;
+#[cfg(feature = "usb")]
+use usb_device::bus::UsbBusAllocator;
+
 use hal::clock::GenericClockController;
 use hal::ehal::spi::SpiBus;
 use hal::pac;
@@ -218,6 +223,26 @@ pub fn sd_spi(
         .spi_mode(spi::MODE_0)
         .enable()
 }
+
+
+#[cfg(feature = "usb")]
+/// Convenience function for setting up USB
+pub fn usb_allocator(
+    dm: impl Into<UsbDm>,
+    dp: impl Into<UsbDp>,
+    usb: pac::Usb,
+    clocks: &mut GenericClockController,
+    mclk: &mut pac::Mclk,
+) -> UsbBusAllocator<UsbBus> {
+    use pac::gclk::{genctrl::Srcselect, pchctrl::Genselect};
+
+    clocks.configure_gclk_divider_and_source(Genselect::Gclk2, 1, Srcselect::Dfll, false);
+    let usb_gclk = clocks.get_gclk(Genselect::Gclk2).unwrap();
+    let usb_clock = &clocks.usb(&usb_gclk).unwrap();
+    let (dm, dp) = (dm.into(), dp.into());
+    UsbBusAllocator::new(UsbBus::new(usb_clock, mclk, dm, dp, usb))
+}
+
 
 // ----------------------------------------------------------------------------
 // Shift register chain (SERCOM6, PC05-PC07 + PB01/PB02)

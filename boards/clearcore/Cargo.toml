@@ -35,6 +35,7 @@ version = "0.3.1"
 rtic = {version = "2.1.2", features = ["thumbv7-backend"]}
 panic-probe = {version = "1.0.0", features = ["print-rtt"] }
 rtt-target = {version = "0.6.2"}
+usbd-serial = "0.2"
 
 [features]
 default = ["rt", "atsamd-hal/same53n"]
@@ -57,3 +58,7 @@ name = "hello_world"
 [[example]]
 name = "blinky_rtic"
 required-features = ["rtic"]
+
+[[example]]
+name = "hello_world_usb"
+required-features = ["usb"]
