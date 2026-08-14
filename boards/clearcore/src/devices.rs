@@ -1,31 +1,6 @@
 //! ClearCore board devices
-//!
-//! Higher-level abstractions built on top of the pin definitions in
-//! [`pins`](super::pins):
-//!
-//! - Type aliases and constructors for the SERCOM peripherals (COM0, COM1,
-//!   XBEE, SD card, shift register chain).
-//! - A driver for the 4x shift-register chain that carries all board
-//!   configuration lines, LEDs, and motor enables.
-//! - Conversion helpers for the various scaled analog signals and the
-//!   4-20mA DAC output.
-//!
-//! ## Pin-mux notes
-//!
-//! - The SERCOM pad assignments below follow the supplied SAME53N19A
-//!   multiplexing table: COM1 is SERCOM0 on mux C, COM0 is SERCOM7 on mux D,
-//!   XBEE is SERCOM2 on mux D, the SD signals are SERCOM4 on mux D, and the
-//!   shift-register signals are SERCOM6 on mux C.
-//! - The shift registers are assumed to be 74HC595-style (`SRCLK`/`RCLK`/
-//!   `Q7'`/`OEn` match the note names `SR_CLK`/`SR_LOAD`/`SR_DATA_RET`/
-//!   `SR_ENn`). With SR_DATA feeding SR0 and `Q7'` of SR3 returning as
-//!   `SR_DATA_RET`, the *first* byte shifted out ends up in SR3, and the
-//!   first bit of each byte ends up in Q7. Hence: bytes are sent
-//!   [SR3, SR2, SR1, SR0], MSB first (SPI MODE_0, MSB-first — the SERCOM
-//!   default).
+//! Just helpers and stuff
 
-use core::convert::Infallible;
-use atsamd_hal::ehal::digital::OutputPin;
 use super::hal;
 use super::pins::*;
 
@@ -35,7 +10,6 @@ use atsamd_hal::usb::UsbBus;
 use usb_device::bus::UsbBusAllocator;
 
 use hal::clock::GenericClockController;
-use hal::ehal::spi::SpiBus;
 use hal::pac;
 use hal::sercom::uart::{self, BaudMode, Oversampling};
 use hal::sercom::{spi, Sercom0, Sercom2, Sercom4, Sercom6, Sercom7};
@@ -225,6 +199,44 @@ pub fn sd_spi(
 }
 
 
+
+
+
+// ----------------------------------------------------------------------------
+// Shift register chain (SERCOM6, PC05-PC07 + PB01/PB02)
+// ----------------------------------------------------------------------------
+
+/// SPI pads for the shift register chain
+/// (DI = `SR_DATA_RET` PC06/PAD2, DO = `SR_DATA` PC07/PAD3,
+/// SCK = `SR_CLK` PC05/PAD1).
+pub type SrSpiPads = spi::Pads<Sercom6, SrDataRet, SrData, SrClk>;
+/// SPI master driving the shift register chain.
+pub type SrSpi = spi::Spi<spi::Config<SrSpiPads>, spi::Duplex>;
+
+/// Builds the SERCOM6 SPI master and wraps it, `SR_LOAD`, and `SR_ENn` into a
+/// [`ShiftRegisters`] driver. 4MHz is a comfortable baud rate for a
+/// 74HC595-class chain at 3.3v.
+pub fn shift_registers(
+    clocks: &mut GenericClockController,
+    baud: impl Into<Hertz>,
+    sercom6: pac::Sercom6,
+    mclk: &mut pac::Mclk,
+    sck: impl Into<SrClk>,
+    data: impl Into<SrData>,
+    data_ret: impl Into<SrDataRet>,
+) -> SrSpi {
+    let gclk0 = clocks.gclk0();
+    let clock = clocks.sercom6_core(&gclk0).unwrap();
+    let pads = spi::Pads::default()
+        .data_in(data_ret.into())
+        .data_out(data.into())
+        .sclk(sck.into());
+    spi::Config::new(mclk, sercom6, pads, clock.freq())
+        .baud(baud.into())
+        .spi_mode(spi::MODE_0)
+        .enable()
+}
+
 #[cfg(feature = "usb")]
 /// Convenience function for setting up USB
 pub fn usb_allocator(
@@ -243,433 +255,3 @@ pub fn usb_allocator(
     UsbBusAllocator::new(UsbBus::new(usb_clock, mclk, dm, dp, usb))
 }
 
-
-// ----------------------------------------------------------------------------
-// Shift register chain (SERCOM6, PC05-PC07 + PB01/PB02)
-// ----------------------------------------------------------------------------
-
-/// SPI pads for the shift register chain
-/// (DI = `SR_DATA_RET` PC06/PAD2, DO = `SR_DATA` PC07/PAD3,
-/// SCK = `SR_CLK` PC05/PAD1).
-pub type SrSpiPads = spi::Pads<Sercom6, SrDataRet, SrData, SrClk>;
-/// SPI master driving the shift register chain.
-pub type SrSpi = spi::Spi<spi::Config<SrSpiPads>, spi::Duplex>;
-
-/// One of the 32 shift register outputs.
-///
-/// The discriminant is the bit position in [`ShiftRegisters`]' internal
-/// state: `SRn-Qm` is bit `n * 8 + m`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum SrOutput {
-    /// SR0-Q0: high = `A09` analog (divider enabled), low = digital (5v pull-up).
-    Cfg09AinDin = 0,
-    /// SR0-Q1: as [`Self::Cfg09AinDin`], for `A10`.
-    Cfg10AinDin = 1,
-    /// SR0-Q2: as [`Self::Cfg09AinDin`], for `A11`.
-    Cfg11AinDin = 2,
-    /// SR0-Q3: as [`Self::Cfg09AinDin`], for `A12`.
-    Cfg12AinDin = 3,
-    /// SR0-Q4: `A09` indicator LED. Active **low**.
-    Led09n = 4,
-    /// SR0-Q5: `A10` indicator LED. Active **low**.
-    Led10n = 5,
-    /// SR0-Q6: `A11` indicator LED. Active **low**.
-    Led11n = 6,
-    /// SR0-Q7: `A12` indicator LED. Active **low**.
-    Led12n = 7,
-    /// SR1-Q0: `DI8` indicator LED. Active **low**.
-    Led08n = 8,
-    /// SR1-Q1: `DI7` indicator LED. Active **low**.
-    Led07n = 9,
-    /// SR1-Q2: `DI6` indicator LED. Active **low**.
-    Led06n = 10,
-    /// SR1-Q3: high = `IO0` is a HP digital output / digital input,
-    /// low = 4-20mA analog output (DAC `AOUT00`).
-    Cfg00DioAout = 11,
-    /// SR1-Q4: `COM1` indicator LED. Active high.
-    LedCom1 = 12,
-    /// SR1-Q5: `COM0` indicator LED. Active high.
-    LedCom0 = 13,
-    /// SR1-Q6: high = `COM0` is UART, low = SPI.
-    CfgCom0UartSpi = 14,
-    /// SR1-Q7: high = `COM1` is UART, low = SPI.
-    CfgCom1UartSpi = 15,
-    /// SR2-Q0: red 'user controlled' LED. Active high.
-    LedUser = 16,
-    /// SR2-Q1: underglow LEDs. On when high (net is also pulled up, so it
-    /// must be actively driven low to turn the LEDs off).
-    LedUnderglow = 17,
-    /// SR2-Q2: inverts all `COM0` connector signals when high.
-    CfgCom0Polarity = 18,
-    /// SR2-Q3: inverts all `COM1` connector signals when high.
-    CfgCom1Polarity = 19,
-    /// SR2-Q4: motor 0 enable.
-    Mtr0Enable = 20,
-    /// SR2-Q5: motor 1 enable.
-    Mtr1Enable = 21,
-    /// SR2-Q6: motor 2 enable.
-    Mtr2Enable = 22,
-    /// SR2-Q7: motor 3 enable.
-    Mtr3Enable = 23,
-    /// SR3-Q0: `IO0` indicator LED. Active **low**.
-    Led00n = 24,
-    /// SR3-Q1: `IO1` indicator LED. Active **low**.
-    Led01n = 25,
-    /// SR3-Q2: `IO2` indicator LED. Active **low**.
-    Led02n = 26,
-    /// SR3-Q3: `IO3` indicator LED. Active **low**.
-    Led03n = 27,
-    /// SR3-Q4: `IO4` indicator LED. Active **high**.
-    Led04 = 28,
-    /// SR3-Q5: `IO5` indicator LED. Active **high**.
-    Led05 = 29,
-    /// SR3-Q6: motor connector 2 mode: motor (ClearPath) vs. step driver.
-    /// Exact polarity unverified; the trailing `n` suggests low = step driver.
-    CfgM2MtrSdrvr = 30,
-    /// SR3-Q7: as [`Self::CfgM2MtrSdrvr`], for motor connector 3.
-    CfgM3MtrSdrvr = 31,
-}
-
-impl SrOutput {
-    /// Bit mask of this output within the 32-bit chain state.
-    pub const fn mask(self) -> u32 {
-        1 << (self as u8)
-    }
-}
-
-/// LEDs reachable through the shift register chain, with polarity abstracted
-/// away (see [`ShiftRegisters::set_led`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Led {
-    Io0,
-    Io1,
-    Io2,
-    Io3,
-    Io4,
-    Io5,
-    Di6,
-    Di7,
-    Di8,
-    A09,
-    A10,
-    A11,
-    A12,
-    Com0,
-    Com1,
-    User,
-    Underglow,
-}
-
-impl Led {
-    /// Returns the underlying shift register output and whether it is
-    /// active-low.
-    pub const fn output(self) -> (SrOutput, bool) {
-        match self {
-            Led::Io0 => (SrOutput::Led00n, true),
-            Led::Io1 => (SrOutput::Led01n, true),
-            Led::Io2 => (SrOutput::Led02n, true),
-            Led::Io3 => (SrOutput::Led03n, true),
-            Led::Io4 => (SrOutput::Led04, false),
-            Led::Io5 => (SrOutput::Led05, false),
-            Led::Di6 => (SrOutput::Led06n, true),
-            Led::Di7 => (SrOutput::Led07n, true),
-            Led::Di8 => (SrOutput::Led08n, true),
-            Led::A09 => (SrOutput::Led09n, true),
-            Led::A10 => (SrOutput::Led10n, true),
-            Led::A11 => (SrOutput::Led11n, true),
-            Led::A12 => (SrOutput::Led12n, true),
-            Led::Com0 => (SrOutput::LedCom0, false),
-            Led::Com1 => (SrOutput::LedCom1, false),
-            Led::User => (SrOutput::LedUser, false),
-            Led::Underglow => (SrOutput::LedUnderglow, false),
-        }
-    }
-}
-
-/// One of the two `COM` connectors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ComPort {
-    Com0,
-    Com1,
-}
-
-/// One of the four `A` (analog-capable) input connectors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AnalogIn {
-    A09,
-    A10,
-    A11,
-    A12,
-}
-
-/// Errors from the shift register chain.
-#[derive(Debug)]
-pub enum SrError {
-    /// SPI bus error.
-    Spi(spi::Error),
-    /// The bits read back on `SR_DATA_RET` did not match what was shifted
-    /// out on the previous transfer — the chain has probably desynced.
-    ReadbackMismatch { expected: u32, got: u32 },
-}
-
-impl From<spi::Error> for SrError {
-    fn from(e: spi::Error) -> Self {
-        SrError::Spi(e)
-    }
-}
-
-/// Driver for the chain of four shift registers carrying board configuration
-/// lines, LEDs, and motor enables.
-///
-/// All `set_*` methods only modify a buffered copy of the state; call
-/// [`flush`](Self::flush) (or [`flush_verified`](Self::flush_verified)) to
-/// shift it out and latch it onto the outputs.
-pub struct ShiftRegisters {
-    spi: SrSpi,
-    load: SrLoad,
-    enable: SrEn,
-    state: u32,
-}
-
-impl ShiftRegisters {
-    /// Power-on-safe state: all LEDs off, all motors disabled, `A09`-`A12`
-    /// digital, `IO0` digital, both COM ports UART with normal polarity, and
-    /// motor connectors 2/3 in `Mtr` mode.
-    pub const SAFE_DEFAULT: u32 = SrOutput::Led09n.mask()
-        | SrOutput::Led10n.mask()
-        | SrOutput::Led11n.mask()
-        | SrOutput::Led12n.mask()
-        | SrOutput::Led08n.mask()
-        | SrOutput::Led07n.mask()
-        | SrOutput::Led06n.mask()
-        | SrOutput::Cfg00DioAout.mask()
-        | SrOutput::CfgCom0UartSpi.mask()
-        | SrOutput::CfgCom1UartSpi.mask()
-        | SrOutput::Led00n.mask()
-        | SrOutput::Led01n.mask()
-        | SrOutput::Led02n.mask()
-        | SrOutput::Led03n.mask()
-        | SrOutput::CfgM2MtrSdrvr.mask()
-        | SrOutput::CfgM3MtrSdrvr.mask();
-
-    /// Takes ownership of the SPI bus (see [`shift_registers`]), the
-    /// `SR_LOAD` latch pin (PB02), and the `SR_ENn` output-enable pin (PB01).
-    ///
-    /// Shifts out [`Self::SAFE_DEFAULT`] and latches it, but leaves the
-    /// outputs **disabled** (`SR_ENn` high); call
-    /// [`enable_outputs`](Self::enable_outputs) once you are happy with the
-    /// state.
-    pub fn new(spi: SrSpi, mut load: SrLoad, mut enable: SrEn) -> Result<Self, SrError> {
-        unwrap_infallible_none(enable.set_high());
-        unwrap_infallible_none(load.set_low());
-        let mut sr = Self {
-            spi,
-            load,
-            enable,
-            state: Self::SAFE_DEFAULT,
-        };
-        sr.flush()?;
-        Ok(sr)
-    }
-
-    /// Drives `SR_ENn` low, enabling all shift register outputs.
-    pub fn enable_outputs(&mut self) {
-        unwrap_infallible_none(self.enable.set_low());
-    }
-
-    /// Drives `SR_ENn` high, tri-stating all shift register outputs.
-    pub fn disable_outputs(&mut self) {
-        unwrap_infallible_none(self.enable.set_high());
-    }
-
-    /// The buffered (not necessarily latched) chain state.
-    pub fn state(&self) -> u32 {
-        self.state
-    }
-
-    /// Sets the raw logic level of one output in the buffered state.
-    pub fn set_level(&mut self, out: SrOutput, high: bool) {
-        if high {
-            self.state |= out.mask();
-        } else {
-            self.state &= !out.mask();
-        }
-    }
-
-    /// Reads the raw logic level of one output from the buffered state.
-    pub fn level(&self, out: SrOutput) -> bool {
-        self.state & out.mask() != 0
-    }
-
-    /// Turns an LED on or off, accounting for its polarity.
-    pub fn set_led(&mut self, led: Led, on: bool) {
-        let (out, active_low) = led.output();
-        self.set_level(out, on ^ active_low);
-    }
-
-    /// Configures an `A` connector: `analog = true` enables the 10kΩ/20kΩ
-    /// divider (0-10v reads as 0-3.3v); `analog = false` makes it a digital
-    /// input with a 5v pull-up via 5kΩ.
-    pub fn set_ain_mode(&mut self, input: AnalogIn, analog: bool) {
-        let out = match input {
-            AnalogIn::A09 => SrOutput::Cfg09AinDin,
-            AnalogIn::A10 => SrOutput::Cfg10AinDin,
-            AnalogIn::A11 => SrOutput::Cfg11AinDin,
-            AnalogIn::A12 => SrOutput::Cfg12AinDin,
-        };
-        self.set_level(out, analog);
-    }
-
-    /// Configures `IO0`: `analog = true` routes the DAC (`AOUT00`) to the
-    /// 4-20mA output; `analog = false` uses it as a HP digital output /
-    /// digital input.
-    pub fn set_io0_analog(&mut self, analog: bool) {
-        self.set_level(SrOutput::Cfg00DioAout, !analog);
-    }
-
-    /// Configures a COM port as UART (`true`) or SPI (`false`).
-    pub fn set_com_uart(&mut self, port: ComPort, uart: bool) {
-        let out = match port {
-            ComPort::Com0 => SrOutput::CfgCom0UartSpi,
-            ComPort::Com1 => SrOutput::CfgCom1UartSpi,
-        };
-        self.set_level(out, uart);
-    }
-
-    /// Sets a COM port's polarity inversion (for e.g. inverted-TTL serial).
-    pub fn set_com_inverted(&mut self, port: ComPort, inverted: bool) {
-        let out = match port {
-            ComPort::Com0 => SrOutput::CfgCom0Polarity,
-            ComPort::Com1 => SrOutput::CfgCom1Polarity,
-        };
-        self.set_level(out, inverted);
-    }
-
-    /// Enables or disables motor connector `n` (0-3).
-    ///
-    /// # Panics
-    /// Panics if `n > 3`.
-    pub fn set_motor_enable(&mut self, n: u8, enabled: bool) {
-        let out = match n {
-            0 => SrOutput::Mtr0Enable,
-            1 => SrOutput::Mtr1Enable,
-            2 => SrOutput::Mtr2Enable,
-            3 => SrOutput::Mtr3Enable,
-            _ => panic!("no such motor"),
-        };
-        self.set_level(out, enabled);
-    }
-
-    /// Shifts out the buffered state and pulses `SR_LOAD` to latch it onto
-    /// the outputs. Returns the *previous* chain contents, read back through
-    /// `SR_DATA_RET`.
-    pub fn flush(&mut self) -> Result<u32, SrError> {
-        // First byte out lands in the last register (SR3); MSB of each byte
-        // lands in Q7.
-        let mut buf = self.state.to_be_bytes();
-        self.spi.transfer_in_place(&mut buf)?;
-        self.spi.flush()?;
-        unwrap_infallible_none(self.load.set_high());
-        // 74HC595 t_w(RCLK) is tens of ns; two GPIO writes at 120MHz are
-        // comfortably slower than that.
-        unwrap_infallible_none(self.load.set_low());
-        Ok(u32::from_be_bytes(buf))
-    }
-
-    /// Like [`flush`](Self::flush), but shifts the state out twice and checks
-    /// that the second pass reads back exactly what the first pass wrote,
-    /// verifying the chain hasn't desynced. The outputs are latched on both
-    /// passes (with identical data, so this is invisible externally).
-    pub fn flush_verified(&mut self) -> Result<(), SrError> {
-        self.flush()?;
-        let got = self.flush()?;
-        if got != self.state {
-            return Err(SrError::ReadbackMismatch {
-                expected: self.state,
-                got,
-            });
-        }
-        Ok(())
-    }
-
-    /// Releases the underlying resources. `SR_ENn` is driven high first.
-    pub fn free(mut self) -> (SrSpi, SrLoad, SrEn) {
-        self.disable_outputs();
-        (self.spi, self.load, self.enable)
-    }
-}
-
-/// Builds the SERCOM6 SPI master and wraps it, `SR_LOAD`, and `SR_ENn` into a
-/// [`ShiftRegisters`] driver. 4MHz is a comfortable baud rate for a
-/// 74HC595-class chain at 3.3v.
-pub fn shift_registers(
-    clocks: &mut GenericClockController,
-    baud: impl Into<Hertz>,
-    sercom6: pac::Sercom6,
-    mclk: &mut pac::Mclk,
-    sck: impl Into<SrClk>,
-    data: impl Into<SrData>,
-    data_ret: impl Into<SrDataRet>,
-    load: impl Into<SrLoad>,
-    enable: impl Into<SrEn>,
-) -> Result<ShiftRegisters, SrError> {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom6_core(&gclk0).unwrap();
-    let pads = spi::Pads::default()
-        .data_in(data_ret.into())
-        .data_out(data.into())
-        .sclk(sck.into());
-    let spi = spi::Config::new(mclk, sercom6, pads, clock.freq())
-        .baud(baud.into())
-        .spi_mode(spi::MODE_0)
-        .enable();
-    ShiftRegisters::new(spi, load.into(), enable.into())
-}
-
-// ----------------------------------------------------------------------------
-// Analog scaling helpers
-// ----------------------------------------------------------------------------
-
-/// DAC counts per mA on `AOUT00` with a 2.5v reference (from the schematic:
-/// `DATA0 = mA * 84.664`).
-pub const AOUT00_COUNTS_PER_MA: f32 = 84.664;
-
-/// Maximum usable `AOUT00` code. The schematic calls this an "11-bit value"
-/// (full range 0.0 - 24.1mA), even though the DAC data register is 12 bits.
-pub const AOUT00_MAX_COUNTS: u16 = 0x7FF;
-
-/// Converts a desired `IO0` analog output current (mA) to a DAC `DATA0`
-/// value, clamped to `0..=`[`AOUT00_MAX_COUNTS`]. Note the connector's
-/// nominal range is 4-20mA.
-pub fn aout00_counts_for_ma(ma: f32) -> u16 {
-    let counts = ma * AOUT00_COUNTS_PER_MA;
-    if counts <= 0.0 {
-        0
-    } else if counts >= AOUT00_MAX_COUNTS as f32 {
-        AOUT00_MAX_COUNTS
-    } else {
-        counts as u16
-    }
-}
-
-/// Converts a pin voltage on an `A` connector input (PB05-PB07, PC03, with
-/// the divider enabled via `CfgXX_AIN_DINn`) to the connector voltage.
-/// 10kΩ top / 20kΩ bottom: `Vin = Vpin * 1.5` (0-10v ↦ 0-3.3v).
-pub fn analog_in_volts(v_pin: f32) -> f32 {
-    v_pin * 1.5
-}
-
-/// Converts the `Vsupply_MON` (PC02) pin voltage to the supply voltage.
-/// 47kΩ / 2kΩ divider: `Vsupply = Vpin * 24.5` (24.00v reads as 0.9796v).
-pub fn vsupply_volts(v_pin: f32) -> f32 {
-    v_pin * (49.0 / 2.0)
-}
-
-/// Converts the `5VOB_MON` (PB04) pin voltage to the 5VOB bus voltage.
-/// 5kΩ / 5kΩ divider: `V5ob = Vpin * 2`.
-pub fn v5ob_volts(v_pin: f32) -> f32 {
-    v_pin * 2.0
-}
-// Helper to quell warnings about obviously safe ignoring of results.
-fn unwrap_infallible_none(_res: Result<(), Infallible>) {}

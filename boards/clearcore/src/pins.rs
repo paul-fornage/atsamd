@@ -2,25 +2,7 @@
 //!
 //! MCU: ATSAME53N19A
 //!
-//! ## SERCOM allocation
-//!
-//! | Peripheral | Pins                   | Sercom  | Alternate |
-//! |------------|------------------------|---------|-----------|
-//! | COM1       | PA08-PA11              | SERCOM0 | C         |
-//! | COM0       | PB18-PB21              | SERCOM7 | D         |
-//! | XBEE       | PB24, PB25, PC24, PC25 | SERCOM2 | D         |
-//! | SD card    | PB08-PB10, PA04 (CS)   | SERCOM4 | C/D       |
-//! | Shift regs | PC05-PC07              | SERCOM6 | C         |
-//!
-//! ## Conventions
-//!
-//! - All user-facing digital IO (`IOn`, `DIn`, `An` connectors) is active-low
-//!   and pulled up to 24v on the connector side. The MCU-side nets are
-//!   protected by 169kΩ series resistors.
-//! - Board-level configuration lines (`Cfg*`), LEDs, and motor enables live on
-//!   a chain of four shift registers driven by SERCOM6 SPI (`SR_DATA`,
-//!   `SR_CLK`, `SR_DATA_RET`) plus `SR_LOAD` (PB02) and `SR_ENn` (PB01).
-//!   Those outputs are modeled in `devices.rs`, not here.
+//! Motor pins not considered yet.
 
 use super::hal;
 
