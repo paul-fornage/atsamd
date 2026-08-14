@@ -19,6 +19,14 @@ use hal::time::Hertz;
 // COM1 (SERCOM0, PA08-PA11, alternate C)
 // ----------------------------------------------------------------------------
 
+hal::bsp_peripherals!(
+    Sercom0 { Com1Sercom }
+    Sercom2 { XbeeSercom }
+    Sercom4 { SdSercom }
+    Sercom6 { SrSercom }
+    Sercom7 { Com0Sercom }
+);
+
 /// UART pads for `COM1` (RX = PA09/PAD1, TX = PA08/PAD0).
 ///
 /// RTS (PA10/PAD2) and CTS (PA11/PAD3) are available; add them to the pads if
