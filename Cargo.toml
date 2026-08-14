@@ -8,6 +8,7 @@ members = [
 	"boards/clearcore", # Silencing my tardy IDE
 	"boards/feather_m4",
 	"boards/atsame54_xpro",
+	"boards/metro_m4",
 ]
 
 [profile.dev]
