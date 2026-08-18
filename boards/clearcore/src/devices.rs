@@ -8,8 +8,12 @@ use super::pins::*;
 use atsamd_hal::usb::UsbBus;
 #[cfg(feature = "usb")]
 use usb_device::bus::UsbBusAllocator;
+#[cfg(feature = "usb")]
+use hal::clock::UsbClock;
 
-use hal::clock::GenericClockController;
+use hal::clock::{
+    Sercom0CoreClock, Sercom2CoreClock, Sercom4CoreClock, Sercom6CoreClock, Sercom7CoreClock,
+};
 use hal::pac;
 use hal::sercom::uart::{self, BaudMode, Oversampling};
 use hal::sercom::{spi, Sercom0, Sercom2, Sercom4, Sercom6, Sercom7};
@@ -49,15 +53,14 @@ pub type Com1Spi = spi::Spi<spi::Config<Com1SpiPads>, spi::Duplex>;
 
 /// Convenience constructor for [`Com1Uart`], clocked from GCLK0.
 pub fn com1_uart(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom0CoreClock>,
     baud: impl Into<Hertz>,
     sercom0: pac::Sercom0,
     mclk: &mut pac::Mclk,
     rx: impl Into<Com1Rx>,
     tx: impl Into<Com1Tx>,
 ) -> Com1Uart {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom0_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = uart::Pads::default().rx(rx.into()).tx(tx.into());
     uart::Config::new(mclk, sercom0, pads, clock.freq())
         .baud(baud.into(), BaudMode::Fractional(Oversampling::Bits16))
@@ -66,7 +69,7 @@ pub fn com1_uart(
 
 /// Convenience constructor for [`Com1Spi`], clocked from GCLK0.
 pub fn com1_spi(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom0CoreClock>,
     baud: impl Into<Hertz>,
     sercom0: pac::Sercom0,
     mclk: &mut pac::Mclk,
@@ -74,8 +77,7 @@ pub fn com1_spi(
     mosi: impl Into<Com1Mosi>,
     miso: impl Into<Com1Miso>,
 ) -> Com1Spi {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom0_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = spi::Pads::default()
         .data_in(miso.into())
         .data_out(mosi.into())
@@ -103,15 +105,14 @@ pub type Com0Spi = spi::Spi<spi::Config<Com0SpiPads>, spi::Duplex>;
 
 /// Convenience constructor for [`Com0Uart`], clocked from GCLK0.
 pub fn com0_uart(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom7CoreClock>,
     baud: impl Into<Hertz>,
     sercom7: pac::Sercom7,
     mclk: &mut pac::Mclk,
     rx: impl Into<Com0Rx>,
     tx: impl Into<Com0Tx>,
 ) -> Com0Uart {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom7_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = uart::Pads::default().rx(rx.into()).tx(tx.into());
     uart::Config::new(mclk, sercom7, pads, clock.freq())
         .baud(baud.into(), BaudMode::Fractional(Oversampling::Bits16))
@@ -120,7 +121,7 @@ pub fn com0_uart(
 
 /// Convenience constructor for [`Com0Spi`], clocked from GCLK0.
 pub fn com0_spi(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom7CoreClock>,
     baud: impl Into<Hertz>,
     sercom7: pac::Sercom7,
     mclk: &mut pac::Mclk,
@@ -128,8 +129,7 @@ pub fn com0_spi(
     mosi: impl Into<Com0Mosi>,
     miso: impl Into<Com0Miso>,
 ) -> Com0Spi {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom7_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = spi::Pads::default()
         .data_in(miso.into())
         .data_out(mosi.into())
@@ -153,15 +153,14 @@ pub type XbeeUart = uart::Uart<uart::Config<XbeeUartPads>, uart::Duplex>;
 
 /// Convenience constructor for [`XbeeUart`], clocked from GCLK0.
 pub fn xbee_uart(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom2CoreClock>,
     baud: impl Into<Hertz>,
     sercom2: pac::Sercom2,
     mclk: &mut pac::Mclk,
     rx: impl Into<XbeeRx>,
     tx: impl Into<XbeeTx>,
 ) -> XbeeUart {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom2_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = uart::Pads::default().rx(rx.into()).tx(tx.into());
     uart::Config::new(mclk, sercom2, pads, clock.freq())
         .baud(baud.into(), BaudMode::Fractional(Oversampling::Bits16))
@@ -186,7 +185,7 @@ pub type SdSpi = spi::Spi<spi::Config<SdSpiPads>, spi::Duplex>;
 ///
 /// Start at ≤400kHz for card initialization, then raise the baud rate.
 pub fn sd_spi(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom4CoreClock>,
     baud: impl Into<Hertz>,
     sercom4: pac::Sercom4,
     mclk: &mut pac::Mclk,
@@ -194,8 +193,7 @@ pub fn sd_spi(
     mosi: impl Into<MicroSdMosi>,
     miso: impl Into<MicroSdMiso>,
 ) -> SdSpi {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom4_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = spi::Pads::default()
         .data_in(miso.into())
         .data_out(mosi.into())
@@ -225,7 +223,7 @@ pub type SrSpi = spi::Spi<spi::Config<SrSpiPads>, spi::Duplex>;
 /// [`ShiftRegisters`] driver. 4MHz is a comfortable baud rate for a
 /// 74HC595-class chain at 3.3v.
 pub fn shift_registers(
-    clocks: &mut GenericClockController,
+    clock: impl Into<Sercom6CoreClock>,
     baud: impl Into<Hertz>,
     sercom6: pac::Sercom6,
     mclk: &mut pac::Mclk,
@@ -233,8 +231,7 @@ pub fn shift_registers(
     data: impl Into<SrData>,
     data_ret: impl Into<SrDataRet>,
 ) -> SrSpi {
-    let gclk0 = clocks.gclk0();
-    let clock = clocks.sercom6_core(&gclk0).unwrap();
+    let clock = clock.into();
     let pads = spi::Pads::default()
         .data_in(data_ret.into())
         .data_out(data.into())
@@ -251,15 +248,10 @@ pub fn usb_allocator(
     dm: impl Into<UsbDm>,
     dp: impl Into<UsbDp>,
     usb: pac::Usb,
-    clocks: &mut GenericClockController,
+    clock: impl Into<UsbClock>,
     mclk: &mut pac::Mclk,
 ) -> UsbBusAllocator<UsbBus> {
-    use pac::gclk::{genctrl::Srcselect, pchctrl::Genselect};
-
-    clocks.configure_gclk_divider_and_source(Genselect::Gclk2, 1, Srcselect::Dfll, false);
-    let usb_gclk = clocks.get_gclk(Genselect::Gclk2).unwrap();
-    let usb_clock = &clocks.usb(&usb_gclk).unwrap();
+    let clock = clock.into();
     let (dm, dp) = (dm.into(), dp.into());
-    UsbBusAllocator::new(UsbBus::new(usb_clock, mclk, dm, dp, usb))
+    UsbBusAllocator::new(UsbBus::new(&clock, mclk, dm, dp, usb))
 }
-
